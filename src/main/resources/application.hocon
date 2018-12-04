@@ -1,0 +1,11 @@
+
+rest {
+    redisMaxRate=10000
+    port = 7070
+    ip = 0.0.0.0
+    path = cache
+    replace{
+        from = "http://"
+        to = "https://"
+    }
+}
