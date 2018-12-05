@@ -15,6 +15,6 @@ fun main(args: Array<String>) {
     val config = ConfigFactory.defaultApplication()
 
     JettyRestServer(config)
-    logger.info { "BH V$version is ready :D" }
+    logger.info { "HttpRouter V$version is ready :D" }
 
 }

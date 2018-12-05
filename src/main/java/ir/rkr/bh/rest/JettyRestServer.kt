@@ -1,5 +1,6 @@
 package ir.rkr.bh.rest
 
+import com.google.common.hash.Hashing
 import com.google.gson.GsonBuilder
 import com.typesafe.config.Config
 import ir.rkr.bh.version
@@ -22,10 +23,17 @@ import javax.servlet.http.HttpServletResponse
 class JettyRestServer(val config: Config) : HttpServlet() {
 
     private val gson = GsonBuilder().disableHtmlEscaping().create()
+    private val murmur = Hashing.murmur3_32(1)
+
     /**
      * Start a jetty server.
      */
     init {
+
+        val shards = config.getStringList("rest.shards")
+        val step = (65535 * 2 + 1) / shards.size
+
+
         val threadPool = QueuedThreadPool(500, 20)
         val server = Server(threadPool)
         val http = ServerConnector(server).apply { port = config.getInt("rest.port") }
@@ -37,20 +45,26 @@ class JettyRestServer(val config: Config) : HttpServlet() {
          * It can handle multi-get requests for Urls in json format.
          */
 
-
         handler.addServlet(ServletHolder(object : HttpServlet() {
 
             override fun doGet(req: HttpServletRequest, resp: HttpServletResponse) {
-//                println(req.pathInfo)
+                val salt = murmur.hashBytes(req.pathInfo.toByteArray()).asInt() % 65535
+
+                val shardNum = (salt + 65535) / step
+
+                println(shards[shardNum])
+
 
                 resp.apply {
                     status = HttpStatus.SEE_OTHER_303
-                    setHeader("Location", "http://localhost:7070/ali")
+
+                    setHeader("Location", "http://${shards[shardNum]}/${req.pathInfo}")
+//                    setHeader("Location", "http://localhost:7070/ali")
 
                 }
             }
 
-        })   , "/*")
+        }), "/*")
 
 
         handler.addServlet(ServletHolder(object : HttpServlet() {
@@ -65,7 +79,7 @@ class JettyRestServer(val config: Config) : HttpServlet() {
                 }
             }
 
-        })   , "/ali")
+        }), "/ali")
 
         handler.addServlet(ServletHolder(object : HttpServlet() {
             override fun doGet(req: HttpServletRequest, resp: HttpServletResponse) {

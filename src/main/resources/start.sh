@@ -1,7 +1,7 @@
 #!/bin/bash
 
 HOME=`pwd`
-PID_FILE="/tmp/rkr-bh.pid"
+PID_FILE="/tmp/rkr-httprouter.pid"
 
 HEAP="-Xmx10g"
 

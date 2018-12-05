@@ -1,11 +1,11 @@
 
 rest {
-    redisMaxRate=10000
     port = 7070
     ip = 0.0.0.0
-    path = cache
-    replace{
-        from = "http://"
-        to = "https://"
-    }
+    shards = [
+        "localhost:7070/v1"
+        "localhost:7070/v2"
+        "localhost:7070/v3"
+        "localhost:7070/v4"
+    ]
 }
