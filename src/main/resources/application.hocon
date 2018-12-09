@@ -2,10 +2,9 @@
 rest {
     port = 7070
     ip = 0.0.0.0
+    log = true
     shards = [
-        "localhost:7070/v1"
-        "localhost:7070/v2"
-        "localhost:7070/v3"
-        "localhost:7070/v4"
+        "google.com"
+        "bing.com"
     ]
 }

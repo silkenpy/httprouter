@@ -19,7 +19,7 @@
     </Appenders>
 
     <Loggers>
-        <Logger name="ir.rkr" level="INFO" additivity="false">
+        <Logger name="ir.rkr" level="DEBUG" additivity="false">
             <AppenderRef ref="RollingFile"/>
             <!--<AppenderRef ref="Console"/>-->
         </Logger>
