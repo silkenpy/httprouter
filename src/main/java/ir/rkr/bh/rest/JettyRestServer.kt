@@ -1,7 +1,11 @@
 package ir.rkr.bh.rest
 
+import com.google.common.cache.CacheBuilder
+import com.google.common.cache.CacheLoader
 import com.google.common.hash.Hashing
+import com.google.gson.GsonBuilder
 import com.typesafe.config.Config
+import ir.rkr.bh.utils.HttpRouterMetrics
 import ir.rkr.bh.version
 import mu.KotlinLogging
 import org.eclipse.jetty.http.HttpStatus
@@ -16,17 +20,17 @@ import javax.servlet.http.HttpServletResponse
 import kotlin.math.absoluteValue
 
 
-
 /**
  * [JettyRestServer] is a rest-based service to handle requests of redis cluster with an additional
  * in-memory cache layer based on ignite to increase performance and decrease number of requests of
  * redis cluster.
  */
-class JettyRestServer(val config: Config) : HttpServlet() {
+class JettyRestServer(val config: Config, val metrics: HttpRouterMetrics) : HttpServlet() {
 
-    //    private val gson = GsonBuilder().disableHtmlEscaping().create()
+    private val gson = GsonBuilder().disableHtmlEscaping().create()
     val logger = KotlinLogging.logger {}
     private val murmur = Hashing.murmur3_32(1)
+    private val cache = CacheBuilder.newBuilder().maximumSize(20000).build<String,Int>(CacheLoader.from({_ -> 0}))
 //    var checksum: Checksum = CRC32()
 
 
@@ -57,6 +61,10 @@ class JettyRestServer(val config: Config) : HttpServlet() {
         handler.addServlet(ServletHolder(object : HttpServlet() {
 
             override fun doGet(req: HttpServletRequest, resp: HttpServletResponse) {
+
+                metrics.MarkRedirectRequest(1)
+                cache.put(req.pathInfo,cache.get(req.pathInfo)+1 )
+
                 val salt = murmur.hashBytes(req.pathInfo.toByteArray()).asInt() % 65535
 
 //                checksum.update(req.pathInfo.toByteArray(),0,req.pathInfo.length)
@@ -80,20 +88,33 @@ class JettyRestServer(val config: Config) : HttpServlet() {
 
         }), "/*")
 
+        handler.addServlet(ServletHolder(object : HttpServlet() {
 
-//        handler.addServlet(ServletHolder(object : HttpServlet() {
-//
-//            override fun doGet(req: HttpServletRequest, resp: HttpServletResponse) {
-//
-//                resp.apply {
-//                    status = HttpStatus.OK_200
-//                    addHeader("Content-Type", "application/json; charset=utf-8")
-//                    //addHeader("Connection", "close")
-//                    writer.write(gson.toJson("ali 29"))
-//                }
-//            }
-//
-//        }), "/ali/*")
+            override fun doPost(req: HttpServletRequest, resp: HttpServletResponse) {
+
+                resp.apply {
+                    status = HttpStatus.OK_200
+                    addHeader("Content-Type", "application/json; charset=utf-8")
+                    //addHeader("Connection", "close")
+                    writer.write(gson.toJson(metrics.getInfo()))
+                }
+            }
+
+        }), "/metrics")
+
+        handler.addServlet(ServletHolder(object : HttpServlet() {
+
+            override fun doPost(req: HttpServletRequest, resp: HttpServletResponse) {
+
+                resp.apply {
+                    status = HttpStatus.OK_200
+                    addHeader("Content-Type", "application/json; charset=utf-8")
+                    //addHeader("Connection", "close")
+                    writer.write(gson.toJson(cache.asMap()))
+                }
+            }
+
+        }), "/top")
 
         handler.addServlet(ServletHolder(object : HttpServlet() {
             override fun doGet(req: HttpServletRequest, resp: HttpServletResponse) {

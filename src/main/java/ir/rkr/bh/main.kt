@@ -6,7 +6,7 @@ import com.typesafe.config.ConfigFactory
 import ir.rkr.bh.rest.JettyRestServer
 import mu.KotlinLogging
 import com.sun.corba.se.spi.presentation.rmi.StubAdapter.request
-
+import ir.rkr.bh.utils.HttpRouterMetrics
 
 
 const val version = 0.1
@@ -17,8 +17,9 @@ const val version = 0.1
 fun main(args: Array<String>) {
     val logger = KotlinLogging.logger {}
     val config = ConfigFactory.defaultApplication()
+    val metrics = HttpRouterMetrics()
 
-    JettyRestServer(config)
+    JettyRestServer(config,metrics)
 //    val client = OkHttpClient()
 //
 //    val request = Request.Builder()
