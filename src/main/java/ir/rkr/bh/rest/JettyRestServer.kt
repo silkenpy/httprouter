@@ -65,7 +65,7 @@ class JettyRestServer(val config: Config, val metrics: HttpRouterMetrics) : Http
                 metrics.MarkRedirectRequest(1)
                 cache.put(req.pathInfo,cache.get(req.pathInfo)+1 )
 
-                val salt = murmur.hashBytes(req.pathInfo.toByteArray()).asInt() % 65535
+                val salt = murmur.hashBytes(req.pathInfo.toByteArray()).asInt() % 65534
 
 //                checksum.update(req.pathInfo.toByteArray(),0,req.pathInfo.length)
 //                val salt = (checksum.value % 65535).toInt()
