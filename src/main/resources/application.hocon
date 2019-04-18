@@ -2,9 +2,12 @@
 rest {
     port = 7070
     ip = 0.0.0.0
+    rate = 3000
     log = true
+    topsNum = 50000
+    threads = 32
     shards = [
-        "google.com"
-        "bing.com"
+        "http://localhost:2020"
+        "http://localhost:2021"
     ]
 }

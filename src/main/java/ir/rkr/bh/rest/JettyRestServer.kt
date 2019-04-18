@@ -3,6 +3,7 @@ package ir.rkr.bh.rest
 import com.google.common.cache.CacheBuilder
 import com.google.common.cache.CacheLoader
 import com.google.common.hash.Hashing
+import com.google.common.util.concurrent.RateLimiter
 import com.google.gson.GsonBuilder
 import com.typesafe.config.Config
 import ir.rkr.bh.utils.HttpRouterMetrics
@@ -30,9 +31,8 @@ class JettyRestServer(val config: Config, val metrics: HttpRouterMetrics) : Http
     private val gson = GsonBuilder().disableHtmlEscaping().create()
     val logger = KotlinLogging.logger {}
     private val murmur = Hashing.murmur3_32(1)
-    private val cache = CacheBuilder.newBuilder().maximumSize(20000).build<String,Int>(CacheLoader.from({_ -> 0}))
+    private val cache = CacheBuilder.newBuilder().maximumSize(config.getLong("rest.topsNum")).build<String,Int>(CacheLoader.from({_ -> 0}))
 //    var checksum: Checksum = CRC32()
-
 
     /**
      *
@@ -40,13 +40,15 @@ class JettyRestServer(val config: Config, val metrics: HttpRouterMetrics) : Http
      */
     init {
 
+        val rate = RateLimiter.create(config.getDouble("rest.rate"))
+
         val shards = config.getStringList("rest.shards")
         println("shard num ${shards.size}")
         val step = 65535 / shards.size
 
         val logIt = config.getBoolean("rest.log")
 
-        val threadPool = QueuedThreadPool(500, 20)
+        val threadPool = QueuedThreadPool(config.getInt("rest.threads"), 20)
         val server = Server(threadPool)
         val http = ServerConnector(server).apply { port = config.getInt("rest.port") }
         server.addConnector(http)
@@ -63,29 +65,34 @@ class JettyRestServer(val config: Config, val metrics: HttpRouterMetrics) : Http
             override fun doGet(req: HttpServletRequest, resp: HttpServletResponse) {
 
                 metrics.MarkRedirectRequest(1)
-                cache.put(req.pathInfo,cache.get(req.pathInfo)+1 )
 
-                val salt = murmur.hashBytes(req.pathInfo.toByteArray()).asInt() % 65534
+                if (!rate.tryAcquire()){
+                    resp.apply {
+                        status = HttpStatus.NOT_FOUND_404
+                        addHeader("Connection", "close")
+                    }
+                }else {
+
+                    cache.put(req.pathInfo, cache.get(req.pathInfo) + 1)
+                    val salt = murmur.hashBytes(req.pathInfo.toByteArray()).asInt() % 65534
 
 //                checksum.update(req.pathInfo.toByteArray(),0,req.pathInfo.length)
 //                val salt = (checksum.value % 65535).toInt()
 
-                val shardNum = salt.absoluteValue / step
+                    var shardNum = salt.absoluteValue / step
+                    if (shardNum == shards.size) shardNum = 0
 
-                if (logIt)
-                    logger.debug { "http://${shards[shardNum]}${req.pathInfo}" }
+                    if (logIt)
+                        logger.debug { "${shards[shardNum]}${req.pathInfo}" }
 
-                resp.apply {
-                    status = HttpStatus.SEE_OTHER_303
+                    resp.apply {
+                        status = HttpStatus.MOVED_PERMANENTLY_301
 
-                    setHeader("Location", "http://${shards[shardNum]}${req.pathInfo}")
-//                    setHeader("Location", "http://localhost:7070/version")
-//                    addHeader("Connection", "close")
-//                    setHeader("Location", "http://localhost:7070/ali")
-
+                        setHeader("Location", "${shards[shardNum]}${req.pathInfo}")
+                        addHeader("Connection", "close")
+                    }
                 }
             }
-
         }), "/*")
 
         handler.addServlet(ServletHolder(object : HttpServlet() {
@@ -99,7 +106,6 @@ class JettyRestServer(val config: Config, val metrics: HttpRouterMetrics) : Http
                     writer.write(gson.toJson(metrics.getInfo()))
                 }
             }
-
         }), "/metrics")
 
         handler.addServlet(ServletHolder(object : HttpServlet() {
